@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot with Chat History</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f6f8;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .chat-container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #ffffff;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        .message {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #d1e7dd;
+            text-align: right;
+        }
+        .bot-message {
+            background-color: #e2e3e5;
+            text-align: left;
+            white-space: pre-wrap; /* Preserve line breaks */
+        }
+        /* Styling for input field and submit button */
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+        }
+        button {
+            width: 100%;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chatbot Request</h1>
+    <div class="chat-container" id="chatContainer"></div>
+    
+    <label for="message">Enter your message:</label>
+    <input type="text" id="message" name="message" required placeholder="Type your message here...">
+    <button onclick="sendRequest()">Submit</button>
+
+    <script>
+        // Function to load chat history from localStorage
+        function loadChatHistory() {
+            const chatContainer = document.getElementById("chatContainer");
+            chatContainer.innerHTML = ""; // Clear the chat container
+
+            // Retrieve chat history from localStorage
+            const chatHistory = JSON.parse(localStorage.getItem("chatHistory")) || [];
+
+            // Display each message in chat format
+            chatHistory.forEach(chat => {
+                const messageDiv = document.createElement("div");
+                messageDiv.className = "message " + (chat.sender === "user" ? "user-message" : "bot-message");
+                messageDiv.innerHTML = chat.sender === "bot" ? formatResponse(chat.message) : chat.message;
+                chatContainer.appendChild(messageDiv);
+            });
+
+            // Scroll to the latest message
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Function to save a message to localStorage
+        function saveMessage(sender, message) {
+            const chatHistory = JSON.parse(localStorage.getItem("chatHistory")) || [];
+            chatHistory.push({ sender, message });
+            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+        }
+
+        // Function to send the user's message to the server
+        async function sendRequest() {
+            const message = document.getElementById("message").value;
+            const chatContainer = document.getElementById("chatContainer");
+
+            if (!message) return; // Prevent empty messages
+
+            // Display user's message
+            saveMessage("user", message);
+            loadChatHistory();
+
+            try {
+                // Send the user's message to the backend
+                const response = await fetch("http://localhost:8080/generate", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await response.json();
+                const botResponse = data.response_text || "No text content found in response.";
+
+                // Save and display bot's response
+                saveMessage("bot", botResponse);
+                loadChatHistory();
+            } catch (error) {
+                console.error("Error:", error);
+                const errorMessage = "An error occurred. Please try again.";
+                saveMessage("bot", errorMessage);
+                loadChatHistory();
+            }
+
+            // Clear the input field
+            document.getElementById("message").value = "";
+        }
+
+        // Function to format response text with Markdown-like syntax
+        function formatResponse(text) {
+            return text
+                .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Bold text
+                .replace(/\*(.*?)\*/g, "<em>$1</em>")             // Italics
+                .replace(/^- (.*)/gm, "<li>$1</li>")             // Bullet points
+                .replace(/(?:\r\n|\r|\n)/g, "<br>")              // New lines
+                .replace(/<li>(.*?)<\/li>/g, "<ul><li>$1</li></ul>"); // Wrap list items in <ul>
+        }
+
+        // Load chat history when the page loads
+        loadChatHistory();
+    </script>
+</body>
+</html>
